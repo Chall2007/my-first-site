@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indigenous Earthworks of Eastern North America</title>
+  <meta name="description" content="A digital humanities project on Indigenous earthworks of the North and Southeastern United States, from the Archaic to the Mississippian period.">
+  <meta property="og:title" content="Indigenous Earthworks of Eastern North America">
+  <meta property="og:description" content="An interactive StoryMap and site guide to earthworks built by Indigenous communities, and the myths that tried to erase them.">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f7f4ee;
+      --surface: #ffffff;
+      --text: #22251f;
+      --muted: #5b6157;
+      --accent: #5e7a68;        /* the StoryMap's slide green */
+      --accent-strong: #3f5a49;
+      --clay: #a0603a;
+      --border: #ddd6c8;
+      --archaic: #a0603a;
+      --woodland: #5e7a68;
+      --mississippian: #4a5f8a;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #171a17;
+        --surface: #20241f;
+        --text: #ebe8e1;
+        --muted: #a8ada3;
+        --accent: #8fb39c;
+        --accent-strong: #b3d1bd;
+        --clay: #d9946b;
+        --border: #363b34;
+        --archaic: #d9946b;
+        --woodland: #8fb39c;
+        --mississippian: #93a8d6;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 400 1.0625rem/1.65 "Source Sans 3", system-ui, sans-serif;
+    }
+    a { color: var(--accent-strong); }
+    h1, h2, h3 { font-family: "Fraunces", Georgia, serif; line-height: 1.2; font-weight: 700; }
+    .wrap { max-width: 68rem; margin: 0 auto; padding: 0 1rem; }
+
+    /* Navigation */
+    nav {
+      position: sticky; top: 0; z-index: 1000;
+      background: color-mix(in srgb, var(--bg) 92%, transparent);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .wrap { display: flex; gap: 1.25rem; align-items: center; overflow-x: auto; padding-block: .6rem; }
+    nav strong { font-family: "Fraunces", Georgia, serif; white-space: nowrap; }
+    nav a { color: var(--muted); text-decoration: none; white-space: nowrap; font-weight: 600; font-size: .95rem; }
+    nav a:hover, nav a:focus-visible { color: var(--accent-strong); }
+
+    /* Hero */
+    header.hero { padding: 4.5rem 0 3rem; border-bottom: 1px solid var(--border); }
+    .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .8rem; color: var(--clay); font-weight: 600; margin: 0; }
+    header.hero h1 { font-size: clamp(2.1rem, 5.5vw, 3.6rem); margin: .4rem 0 1rem; max-width: 18ch; }
+    header.hero p.lede { font-size: 1.2rem; color: var(--muted); max-width: 44rem; margin: 0 0 1.75rem; }
+    .btn {
+      display: inline-block; padding: .65rem 1.1rem; border-radius: 6px;
+      background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; margin: 0 .5rem .5rem 0;
+    }
+    @media (prefers-color-scheme: dark) { .btn { color: #13170f; } }
+    .btn.secondary { background: transparent; color: var(--accent-strong); border: 1px solid var(--accent); }
+
+    section { padding: 3.5rem 0; border-bottom: 1px solid var(--border); }
+    section h2 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); margin: 0 0 .75rem; }
+    section > .wrap > p.intro { color: var(--muted); max-width: 46rem; margin-top: 0; }
+
+    /* StoryMap embed */
+    .embed {
+      position: relative; width: 100%; height: 80vh; min-height: 480px;
+      border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface);
+    }
+    .embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .embed-note { font-size: .95rem; color: var(--muted); }
+
+    /* Map + timeline */
+    .grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+    @media (min-width: 900px) { .grid { grid-template-columns: 1.1fr 1fr; align-items: start; } }
+    #sites-map {
+      height: 520px; border-radius: 8px; border: 1px solid var(--border);
+      position: sticky; top: 4rem;
+    }
+    @media (max-width: 899px) { #sites-map { height: 380px; position: static; } }
+    .legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: .9rem; color: var(--muted); margin: 0 0 1rem; padding: 0; list-style: none; }
+    .legend li::before { content: ""; display: inline-block; width: .8rem; height: .8rem; border-radius: 50%; margin-right: .4rem; vertical-align: -1px; background: var(--c); }
+
+    ol.timeline { list-style: none; margin: 0; padding: 0; }
+    .site {
+      background: var(--surface); border: 1px solid var(--border); border-left: 5px solid var(--c);
+      border-radius: 6px; padding: 1rem 1.15rem; margin-bottom: 1rem; cursor: pointer;
+      transition: box-shadow .15s, transform .15s;
+    }
+    .site:hover, .site:focus-visible, .site.active { box-shadow: 0 4px 14px rgb(0 0 0 / .12); outline: none; }
+    .site.active { transform: translateX(4px); }
+    .site h3 { margin: 0 0 .15rem; font-size: 1.2rem; }
+    .site .meta { margin: 0 0 .5rem; font-size: .88rem; color: var(--muted); }
+    .site .meta b { color: var(--c); }
+    .site p:last-child { margin-bottom: 0; }
+    .tag { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--clay); }
+
+    /* Myth section */
+    .two-col { display: grid; gap: 2rem; }
+    @media (min-width: 800px) { .two-col { grid-template-columns: 1fr 1fr; } }
+    blockquote {
+      margin: 0; padding: 1rem 1.25rem; border-left: 4px solid var(--clay);
+      background: var(--surface); border-radius: 0 6px 6px 0; font-style: italic;
+    }
+
+    ol.sources li { margin-bottom: .6rem; }
+    footer { padding: 2.5rem 0 3rem; color: var(--muted); font-size: .95rem; }
+
+    .leaflet-popup-content { font: 400 .95rem/1.4 "Source Sans 3", system-ui, sans-serif; }
+  </style>
+</head>
+<body>
+
+<nav aria-label="Sections">
+  <div class="wrap">
+    <strong>Earthworks</strong>
+    <a href="#storymap">StoryMap</a>
+    <a href="#sites">Sites &amp; Timeline</a>
+    <a href="#myth">The “Mound Builder” Myth</a>
+    <a href="#sources">Sources</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Digital Humanities Final Project</p>
+    <h1>Indigenous Earthworks of Eastern North America</h1>
+    <p class="lede">
+      For more than 5,000 years, Indigenous communities in what is now the eastern United States shaped the land
+      into mounds, enclosures, and plazas. These are places of ceremony, gathering, and political life. This project maps
+      several of them, from the Archaic to the Mississippian period, and examines the false claims that once denied
+      their builders credit.
+    </p>
+    <a class="btn" href="#storymap">Explore the StoryMap</a>
+    <a class="btn secondary" href="#sites">Browse the sites</a>
+  </div>
+</header>
+
+<section id="storymap">
+  <div class="wrap">
+    <h2>The StoryMap</h2>
+    <p class="intro">
+      Begin with the Hopewell Great Circle in Newark, Ohio, and the ritual economy that made it possible.
+      Use the arrows inside the map to move between slides.
+    </p>
+    <div class="embed">
+      <iframe
+        title="StoryMap: Indigenous Earthworks in the North and Southeastern United States"
+        src="https://uploads.knightlab.com/storymapjs/14cebe9ac17338ff85a675f6cf584980/dh-final-southeastern-earthworks/index.html"
+        loading="lazy" allowfullscreen></iframe>
+    </div>
+    <p class="embed-note">
+      Trouble viewing? <a href="DH_PROJECT.html">Open the StoryMap full screen</a>.
+    </p>
+  </div>
+</section>
+
+<section id="sites">
+  <div class="wrap">
+    <h2>Sites &amp; Timeline</h2>
+    <p class="intro">
+      Earthwork building spans thousands of years and very different kinds of societies, from mobile
+      hunter-gatherers to large Mississippian towns. Select a site to find it on the map.
+    </p>
+    <ul class="legend" aria-label="Map legend">
+      <li style="--c: var(--archaic)">Archaic (before c. 1000 BCE)</li>
+      <li style="--c: var(--woodland)">Woodland (c. 1000 BCE – 1000 CE)</li>
+      <li style="--c: var(--mississippian)">Mississippian (c. 800 – 1600 CE)</li>
+    </ul>
+    <div class="grid">
+      <div id="sites-map" role="region" aria-label="Map of earthwork sites"></div>
+      <ol class="timeline" id="timeline"></ol>
+    </div>
+  </div>
+</section>
+
+<section id="myth">
+  <div class="wrap">
+    <h2>The “Mound Builder” Myth</h2>
+    <div class="two-col">
+      <div>
+        <p>
+          In the 1800s, many white Americans claimed that the earthworks were built by a vanished “lost race” of
+          Mound Builders, not by the ancestors of Native Americans. Suggested builders included wandering Israelites, Vikings
+          and other far-fetched groups, and the stories spread in popular books and newspapers.
+        </p>
+        <p>
+          The myth was not harmless. It coincided with the era of Indian Removal and helped justify it.
+          If Native people had not built these monuments, settlers could treat them as recent arrivals with no deep
+          claim to the land.
+        </p>
+      </div>
+      <div>
+        <p>
+          The evidence never supported the myth. Ephraim Squier and Edwin Davis surveyed hundreds of earthworks for
+          the Smithsonian in 1848. Their maps were valuable, but they doubted Native authorship. In 1894, Cyrus
+          Thomas of the Smithsonian's Bureau of Ethnology published a large field study concluding that the mounds were
+          built by the ancestors of Native American peoples.
+        </p>
+        <blockquote>
+          Recognizing and breaking down fraudulent claims of the origins of these works is pivotal to fully
+          appreciate the complexity of past Indigenous peoples.
+        </blockquote>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sources">
+  <div class="wrap">
+    <h2>Sources &amp; Further Reading</h2>
+    <ol class="sources">
+      <li>Saunders, Joe W., et al. 1997. “A Mound Complex in Louisiana at 5400–5000 Years Before the Present.” <i>Science</i> 277 (5333): 1796–1799. <a href="https://doi.org/10.1126/science.277.5333.1796">doi:10.1126/science.277.5333.1796</a></li>
+      <li>Squier, Ephraim G., and Edwin H. Davis. 1848. <i>Ancient Monuments of the Mississippi Valley</i>. Smithsonian Contributions to Knowledge, vol. 1.</li>
+      <li>Thomas, Cyrus. 1894. “Report on the Mound Explorations of the Bureau of Ethnology.” <i>Twelfth Annual Report of the Bureau of Ethnology</i>. Washington: Smithsonian Institution.</li>
+      <li>UNESCO World Heritage Centre. <a href="https://whc.unesco.org/en/list/1689">Hopewell Ceremonial Earthworks</a>; <a href="https://whc.unesco.org/en/list/1435">Monumental Earthworks of Poverty Point</a>; <a href="https://whc.unesco.org/en/list/198">Cahokia Mounds State Historic Site</a>.</li>
+      <li>National Park Service. <a href="https://www.nps.gov/hocu/index.htm">Hopewell Culture National Historical Park</a>; <a href="https://www.nps.gov/ocmu/index.htm">Ocmulgee Mounds National Historical Park</a>.</li>
+      <li><a href="https://cahokiamounds.org/">Cahokia Mounds State Historic Site</a>; <a href="https://moundville.museums.ua.edu/">Moundville Archaeological Park</a>, University of Alabama; <a href="https://gastateparks.org/EtowahIndianMounds">Etowah Indian Mounds Historic Site</a>, Georgia State Parks.</li>
+      <li>Images in the StoryMap: <a href="https://hopewellearthworks.org/">HopewellEarthworks.org</a>.</li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Built with <a href="https://storymap.knightlab.com/">StoryMapJS</a> by Northwestern University Knight Lab, <a href="https://leafletjs.com/">Leaflet</a>, and map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors. Hosted on GitHub Pages.</p>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  // Earthwork sites, ordered oldest to newest.
+  const SITES = [
+    {
+      name: "Watson Brake", place: "Ouachita Parish, Louisiana", period: "archaic", periodLabel: "Middle Archaic",
+      dates: "c. 3500 BCE", lat: 32.368, lon: -92.131,
+      text: "Eleven mounds joined by a ring of earthen ridges. It is the oldest known mound complex in North America, built by hunter-gatherers more than 5,000 years ago. Its existence overturned the assumption that only farming societies could build monuments."
+    },
+    {
+      name: "Poverty Point", place: "West Carroll Parish, Louisiana", period: "archaic", periodLabel: "Late Archaic",
+      dates: "c. 1700 – 1100 BCE", lat: 32.637, lon: -91.406,
+      text: "Six concentric C-shaped ridges and several large mounds, built largely by people who lived by hunting, fishing and gathering. Objects made from materials traded across hundreds of miles were found here. It became a UNESCO World Heritage Site in 2014."
+    },
+    {
+      name: "Serpent Mound", place: "Adams County, Ohio", period: "woodland", periodLabel: "Early Woodland or later (debated)",
+      dates: "c. 300 BCE or c. 1100 CE", lat: 39.025, lon: -83.430,
+      text: "A quarter-mile-long effigy of a serpent along a ridge. Archaeologists still debate whether Adena or Fort Ancient people built it. That debate is a good reminder that dating earthworks is difficult."
+    },
+    {
+      name: "Newark Earthworks (Great Circle)", place: "Licking County, Ohio", period: "woodland", periodLabel: "Middle Woodland · Hopewell",
+      dates: "c. 1 – 400 CE", lat: 40.042, lon: -82.428, featured: true,
+      text: "The focus of the StoryMap. The Great Circle and the nearby Octagon, which aligns with the 18.6-year lunar cycle, were built by communities joined through Hopewell ceremonial life. Part of the Hopewell Ceremonial Earthworks UNESCO site (2023)."
+    },
+    {
+      name: "Cahokia", place: "Collinsville, Illinois", period: "mississippian", periodLabel: "Mississippian",
+      dates: "c. 1050 – 1350 CE", lat: 38.660, lon: -90.062,
+      text: "The largest pre-Columbian settlement north of Mexico. Monks Mound, about 100 feet tall, is the largest prehistoric earthwork in the Americas. Cahokia is a clear example of a Mississippian chiefdom with powerful elites, unlike the egalitarian Hopewell."
+    },
+    {
+      name: "Etowah", place: "Cartersville, Georgia", period: "mississippian", periodLabel: "Mississippian",
+      dates: "c. 1000 – 1550 CE", lat: 34.126, lon: -84.808,
+      text: "A fortified town with three major platform mounds. High-status burials with copper plates and shell gorgets show the social ranking typical of Southeastern chiefdoms."
+    },
+    {
+      name: "Ocmulgee", place: "Macon, Georgia", period: "mississippian", periodLabel: "Early Mississippian",
+      dates: "c. 900 – 1150 CE", lat: 32.837, lon: -83.608,
+      text: "Platform mounds and a reconstructed earth lodge with its original clay floor. The Muscogee (Creek) Nation regards this as an ancestral homeland. It became a National Historical Park in 2019."
+    },
+    {
+      name: "Moundville", place: "Hale County, Alabama", period: "mississippian", periodLabel: "Mississippian",
+      dates: "c. 1100 – 1450 CE", lat: 33.006, lon: -87.631,
+      text: "About two dozen platform mounds arranged around a large central plaza. The layout probably reflected the ranking of the groups that lived here."
+    }
+  ];
+
+  const css = getComputedStyle(document.documentElement);
+  const color = p => css.getPropertyValue("--" + p).trim();
+
+  const map = L.map("sites-map", { scrollWheelZoom: false }).setView([36.2, -87.5], 5);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+
+  const list = document.getElementById("timeline");
+  const markers = [];
+
+  function activate(i, pan) {
+    document.querySelectorAll(".site").forEach((el, j) => el.classList.toggle("active", i === j));
+    if (pan) map.flyTo([SITES[i].lat, SITES[i].lon], 9, { duration: 0.8 });
+    markers[i].openPopup();
+  }
+
+  SITES.forEach((s, i) => {
+    const c = color(s.period);
+    const m = L.circleMarker([s.lat, s.lon], {
+      radius: s.featured ? 11 : 8, color: "#fff", weight: 2, fillColor: c, fillOpacity: 0.95
+    }).addTo(map).bindPopup(`<strong>${s.name}</strong><br>${s.dates}<br><span style="color:#666">${s.place}</span>`);
+    m.on("click", () => {
+      activate(i, false);
+      document.querySelectorAll(".site")[i].scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    markers.push(m);
+
+    const li = document.createElement("li");
+    li.className = "site";
+    li.tabIndex = 0;
+    li.style.setProperty("--c", `var(--${s.period})`);
+    li.innerHTML = `
+      ${s.featured ? '<span class="tag">Featured in the StoryMap</span>' : ""}
+      <h3>${s.name}</h3>
+      <p class="meta"><b>${s.dates}</b> · ${s.periodLabel} · ${s.place}</p>
+      <p>${s.text}</p>`;
+    li.addEventListener("click", () => activate(i, true));
+    li.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(i, true); } });
+    list.appendChild(li);
+  });
+</script>
+</body>
+</html>
